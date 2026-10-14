@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sparse-hermitian-eigensolver"
+version = "0.1.0"
+description = "Sparse Hermitian eigenvalue solver prototype for target-shift problems"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=2.0",
+  "scipy>=1.14",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+perf = ["threadpoolctl>=3"]
+mpi = ["mpi4py>=4.0"]
+gpu = ["cupy-cuda12x>=14.0"]
+slepc = ["mpi4py>=4.0", "petsc4py>=3.26", "slepc4py>=3.26"]
+
+[project.scripts]
+sparse-eigensolve = "sparse_eigensolver.__main__:main"
+sparse-eigen-benchmark = "sparse_eigensolver.benchmark:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

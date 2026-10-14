@@ -1,0 +1,14 @@
+{
+  "jobs": [
+    {
+      "matrix": "data/raw/Bai__mhdb416.npz",
+      "output": "results/mpi_bai_mhdb416.npz",
+      "config": {"k": 3, "sigma": 0.0, "mode": "auto", "threads": 1}
+    },
+    {
+      "matrix": "data/raw/Bai__bfwb782.npz",
+      "output": "results/mpi_bai_bfwb782.npz",
+      "config": {"k": 3, "sigma": 0.0, "mode": "auto", "threads": 1}
+    }
+  ]
+}

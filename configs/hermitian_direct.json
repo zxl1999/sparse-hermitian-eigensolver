@@ -1,0 +1,12 @@
+{
+  "_comment": "Hermitian (A = A^H) path with exact sparse LU. Use when the physics guarantees a Hermitian operator (lossless).",
+  "k": 6,
+  "sigma": 0.0,
+  "mode": "hermitian",
+  "hermitian_tol": 1e-12,
+  "reorder": "rcm",
+  "permc_spec": "COLAMD",
+  "inner_solver": "direct",
+  "tol": 1e-10,
+  "residual_tol": 1e-8
+}

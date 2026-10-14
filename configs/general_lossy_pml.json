@@ -1,0 +1,13 @@
+{
+  "_comment": "General (non-Hermitian) path for complex-symmetric matrices from lossy/PML media (A = A^T, not A^H). Bi-orthogonal ARPACK + A^H residuals.",
+  "k": 6,
+  "sigma": 0.0,
+  "mode": "general",
+  "reorder": "rcm",
+  "inner_solver": "ilu",
+  "ilu_drop_tol": 1e-4,
+  "ilu_fill_factor": 20.0,
+  "gmres_restart": 100,
+  "gmres_rtol": 1e-8,
+  "residual_tol": 1e-6
+}

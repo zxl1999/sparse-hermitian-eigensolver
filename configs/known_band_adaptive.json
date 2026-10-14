@@ -1,0 +1,12 @@
+{
+  "_comment": "Adaptive shift by known target band. Candidate shifts walk from the band centre [lo, hi] outward; adaptive_shift adds a geometric backoff so a near-singular centre does not abort the solve. shift_probes are ABSOLUTE offsets from sigma tried in order.",
+  "k": 6,
+  "sigma": 0.0,
+  "mode": "auto",
+  "target_band": [0.0, 0.01],
+  "adaptive_shift": true,
+  "shift_probes": [0.001, 0.01, 0.1],
+  "inner_solver": "direct",
+  "retries": 3,
+  "residual_tol": 1e-8
+}

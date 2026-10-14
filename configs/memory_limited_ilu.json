@@ -1,0 +1,14 @@
+{
+  "_comment": "Low-memory strategy: sparse storage is small but exact LU fill-in would dominate memory. Replace the inner solve with ILU + GMRES. Raise ilu_fill_factor (20 -> 50) if ILU reports 'Factor is exactly singular'.",
+  "k": 6,
+  "sigma": 100.0,
+  "mode": "auto",
+  "reorder": "rcm",
+  "inner_solver": "ilu",
+  "ilu_drop_tol": 1e-4,
+  "ilu_fill_factor": 20.0,
+  "gmres_restart": 100,
+  "gmres_rtol": 1e-8,
+  "residual_tol": 1e-6,
+  "retries": 3
+}

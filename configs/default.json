@@ -1,0 +1,10 @@
+{
+  "k": 6,
+  "sigma": 0.0,
+  "tol": 1e-10,
+  "residual_tol": 1e-8,
+  "retries": 3,
+  "mode": "auto",
+  "reorder": "none",
+  "inner_solver": "direct"
+}

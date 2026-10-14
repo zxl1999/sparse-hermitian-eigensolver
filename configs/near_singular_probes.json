@@ -1,0 +1,11 @@
+{
+  "_comment": "Near-singular target shift: sigma sits exactly on (or extremely close to) an eigenvalue, so A - sigma I is singular. Explicit probes step off the singular point before the blind retries.",
+  "k": 6,
+  "sigma": 0.0,
+  "mode": "auto",
+  "adaptive_shift": true,
+  "shift_probes": [0.001, 0.01, 0.1, 1.0],
+  "inner_solver": "direct",
+  "retries": 3,
+  "residual_tol": 1e-8
+}

@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+build/
+dist/
+*.egg-info/
+.DS_Store
+Thumbs.db
+
+# Local demo scratch artefacts
+results/_demo_*
+
+# Downloaded public matrices (large, reproducible via tools/fetch_matrices.py)
+data/raw/
+
+# Generated result artefacts: keep the human-readable reports, ignore the bulky
+# per-run arrays and diagnostics JSON.
+results/*
+!results/*.md

@@ -1,0 +1,16 @@
+﻿{
+  "_comment": "Adaptive ILU: bounded GMRES probes select the rung minimizing predicted inner work under an approximate factor-memory budget.",
+  "k": 6,
+  "sigma": 0.0,
+  "mode": "auto",
+  "reorder": "rcm",
+  "inner_solver": "ilu",
+  "ilu_adaptive": true,
+  "ilu_memory_budget_mb": 1024.0,
+  "ilu_probe_maxiter": 3,
+  "ilu_probe_time_budget_s": 10.0,
+  "gmres_restart": 100,
+  "gmres_rtol": 1e-8,
+  "residual_tol": 1e-6,
+  "retries": 3
+}

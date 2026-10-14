@@ -1,0 +1,10 @@
+{
+  "_comment": "Optional CuPy/CUDA backend for Hermitian standard or generalized problems.",
+  "backend": "gpu",
+  "mode": "hermitian",
+  "inner_solver": "direct",
+  "k": 6,
+  "ncv": 32,
+  "sigma": 0.0,
+  "residual_tol": 1e-8
+}
