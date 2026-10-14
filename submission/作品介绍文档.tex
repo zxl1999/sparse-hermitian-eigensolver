@@ -1,0 +1,392 @@
+\documentclass[11pt,a4paper]{ctexart}
+
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{fontspec}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage{hyperref}
+
+\definecolor{accent}{RGB}{20,80,150}
+\definecolor{codebg}{RGB}{246,247,249}
+\definecolor{codekw}{RGB}{150,40,120}
+
+\hypersetup{colorlinks=true,linkcolor=accent,urlcolor=accent,citecolor=accent,
+  pdftitle={面向电磁谐振与微波器件仿真的非正定厄密稀疏特征值高效稳定求解器},
+  pdfauthor={sparse-hermitian-eigensolver 项目组}}
+
+\titleformat{\section}{\Large\bfseries\color{accent}}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4em}{0.6em}
+\titlespacing*{\subsection}{0pt}{1.0em}{0.4em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{accent}非正定厄密稀疏特征值高效稳定求解器}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{gray},
+  frame=single,
+  framesep=4pt,
+  rulecolor=\color{gray!40},
+  breaklines=true,
+  columns=fullflexible,
+  showstringspaces=false,
+  aboveskip=0.8em,belowskip=0.8em
+}
+
+\setlist[itemize]{leftmargin=1.4em,itemsep=0.25em,topsep=0.3em}
+\setlist[enumerate]{leftmargin=1.7em,itemsep=0.25em,topsep=0.3em}
+
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{2.2cm}
+{\color{accent}\rule{\textwidth}{1.4pt}}\\[0.9cm]
+{\Huge\bfseries 面向电磁谐振与微波器件仿真的\\[0.35cm]非正定厄密稀疏特征值\\[0.35cm]高效稳定求解器\par}
+\vspace{0.9cm}
+{\Large 自适应位移求逆、ILU 降填充与可复现诊断\par}
+\vspace{0.6cm}
+{\color{accent}\rule{\textwidth}{1.4pt}}\\[2.0cm]
+{\large 作品介绍文档\par}
+\vspace{2.4cm}
+{\large
+\begin{tabular}{rl}
+\textbf{项目名称} & sparse-hermitian-eigensolver \\[0.3cm]
+\textbf{参赛赛道} & AI + 工业软件（中国商飞赛题） \\[0.3cm]
+\textbf{技术栈} & Python 3.10+ / NumPy / SciPy（BSD 系许可） \\[0.3cm]
+\textbf{开源许可} & BSD-3-Clause \\[0.3cm]
+\textbf{文档版本} & v1.0 \\[0.3cm]
+\textbf{日期} & 2026 年 9 月 \\
+\end{tabular}\par}
+\vfill
+{\small 本文档包含项目背景、技术架构、应用场景与创新点。\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section{项目背景}
+
+\subsection{工业需求}
+
+微波器件、天线、电磁兼容（EMC）与光子晶体等电磁仿真问题，经有限元（FEM）、有限差分（FDM）或矩量法（MoM）离散后，最终都归结为\textbf{大规模稀疏矩阵的特征值问题}：
+
+\begin{lstlisting}
+A x = lambda x        (标准型)
+A x = lambda B x      (广义型, B 对称正定)
+\end{lstlisting}
+
+工程上通常只关心\textbf{目标频段（目标移位 $\sigma$）附近}的少数 $k$ 个特征对，而矩阵阶数 $n$ 可达 $10^5 \sim 10^6$。其中 $A$ 为大型稀疏矩阵，其物理来源分为两类：
+
+\begin{itemize}
+  \item \textbf{无耗 / 理想导体}：$A$ 为（复）厄密，$A = A^{H}$，特征值为实；
+  \item \textbf{含损耗 / PML / 辐射边界}：$A$ 为复对称但\textbf{非厄密}，$A = A^{T} \neq A^{H}$，特征值可带虚部。
+\end{itemize}
+
+\subsection{现有工具的三大痛点}
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{3.4cm} X X@{}}
+\toprule
+痛点 & 具体表现 & 后果 \\
+\midrule
+只支持正定矩阵 & 受材料色散、PML 吸收边界、高低频效应影响，矩阵常为\textbf{非正定 / 不定} & 通用工具直接失败或给出错误谱 \\
+计算耗时过长 & 直接对 $A$ 做 Krylov 迭代求内部特征值收敛极慢 & 单次仿真数十分钟至数小时 \\
+目标频段特征值丢失 & $\sigma$ 落在特征值附近使 $A-\sigma I$ 近奇异 & 朴素实现崩溃或漏模 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+此外，\textbf{复厄密（无耗/理想导体）与复对称（含损耗/PML）矩阵的谱完全不同}，而很多工具对此不加区分——这是一个\textbf{正确性问题}，而非风格问题。以公开矩阵 \code{FEMLAB/waveguide3D}（$n = 21{,}036$，相对非厄密度 $0.179$）为例，两条路径给出\textbf{互不重叠}的谱：
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}p{3.0cm} p{9.6cm} p{2.6cm}@{}}
+\toprule
+路径 & $\sigma$ 附近 4 个特征值 & 最大相对残差 \\
+\midrule
+general（正确建模） & $-3.75\text{e-}4+2.1\text{e-}6j,\ -1.70\text{e-}4+4.2\text{e-}5j,\ -3.7\text{e-}5+1.05\text{e-}4j,\ 1.46\text{e-}4+1.31\text{e-}4j$ & $1.5\text{e-}15$ \\
+强制 hermitian（对称化） & $-1.76\text{e-}4,\ 8.4\text{e-}5,\ 3.96\text{e-}4,\ 5.31\text{e-}4$（全为实数） & $4.9\text{e-}15$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{技术架构}
+
+\subsection{总体流程}
+
+求解器采用六阶段流水线，每个阶段都产生可审计的中间量：
+
+\begin{enumerate}
+  \item \textbf{矩阵读取与校验}：支持 \code{.npy}、SciPy \code{.npz}、Matrix Market \code{.mtx/.mm}；校验方阵性、有限性与数值类型。
+  \item \textbf{三角存储恢复（按需）}：\code{--triangular \{none,auto,hermitian,symmetric\}}。部分电磁软件只存储三角，\code{hermitian} 镜像共轭（$\mathrm{tril}(A,0)+\mathrm{tril}(A,-1)^{H}$），\code{symmetric} 镜像不共轭（$\mathrm{tril}(A,0)+\mathrm{tril}(A,-1)^{T}$）。共轭与否正是厄密与复对称的分界。
+  \item \textbf{双路径自动分流}：在 \code{--mode auto} 下测量相对非厄密度并选择 Hermitian 或 general 路径。
+  \item \textbf{内层线性求解}：直接稀疏 LU、矩阵重排或 ILU + GMRES。
+  \item \textbf{自适应位移}：探测位移、几何回退与目标频带内向外走。
+  \item \textbf{残差校验与输出}：对\textbf{原始矩阵}校验相对残差，输出结果与诊断 JSON。
+\end{enumerate}
+
+\subsection{核心算法：位移求逆（Shift-invert）Lanczos / Arnoldi}
+
+直接对 $A$ 做 Krylov 迭代求内部特征值收敛极慢。本方案对算子
+\[
+OP = (A - \sigma I)^{-1}
+\]
+做 Krylov 迭代：$A-\sigma I$ 的特征值 $\mu = \lambda - \sigma$ 映射为 $OP$ 的特征值 $1/\mu$；靠近 $\sigma$ 的特征值满足 $\mu \to 0$，其倒数\textbf{模最大}，因而被 Lanczos/Arnoldi 快速捕捉。
+
+\begin{itemize}
+  \item \textbf{Hermitian 路径}：\code{scipy.sparse.linalg.eigsh(A, k, sigma=sigma, mode="normal")} $\to$ 隐式重启动 Lanczos；
+  \item \textbf{General 路径}：\code{scipy.sparse.linalg.eigs(A, k, sigma=sigma)} $\to$ 隐式重启动 Arnoldi。
+\end{itemize}
+
+每次外层迭代需要一次 $(A-\sigma I)^{-1} v$ 求解——\textbf{这是全部成本所在}。因此降低内解成本（重排、ILU）是首要杠杆。
+
+\textbf{厄密化}：auto 模式判定为厄密时，对 $(A+A^{H})/2$ 求解以消除舍入造成的微小非对称，但残差始终对\textbf{原始矩阵}校验。
+
+\subsection{双路径自动分流（正确性保障）}
+
+在 \code{--mode auto}（默认）下，求解器测量相对非厄密度并自动分流：
+\[
+\text{matrix\_class} =
+\begin{cases}
+\text{hermitian}, & \dfrac{\lVert A - A^{H}\rVert}{\lVert A\rVert} \le \text{hermitian\_tol}\ (\text{默认 } 10^{-12})\\[0.6em]
+\text{general},   & \text{否则}
+\end{cases}
+\]
+判定结果与实际路径分别写入诊断 JSON 的 \code{matrix\_class} 与 \code{resolved\_mode} 字段，便于复现与审计。\textbf{两条路径都完整实现}，绝不把复对称矩阵静默当作厄密处理。
+
+\subsection{三级自适应位移机制}
+
+针对 $\sigma$ 接近特征值导致 $A-\sigma I$ 近奇异的情形：
+
+\begin{enumerate}
+  \item \textbf{探测位移 \code{--shift-probes}}：按候选绝对偏移顺序尝试；
+  \item \textbf{几何回退 \code{--adaptive-shift}}：$\text{step},\ 2\text{step},\ 5\text{step},\ 10\text{step},\ 20\text{step},\ 50\text{step},\ 100\text{step}$（双符号）；
+  \item \textbf{目标频带 \code{--target-band lo hi}}：从频带中心向外走，避开近奇异中心。
+\end{enumerate}
+
+实际使用的移位记录在 \code{effective\_shift} 字段，重试次数记录在 \code{n\_attempts}。
+
+\subsection{降填充（fill-in）策略}
+
+Shift-invert 的瓶颈是 $A-\sigma I$ 稀疏 LU 分解的\textbf{填充}，而非矩阵阶数 $n$。三个\textbf{独立且保持谱不变}的旋钮：
+
+\begin{enumerate}
+  \item \textbf{矩阵重排 \code{--reorder rcm}}：对 $A$ 做反 Cuthill--McKee 置换，分解 $PAP^{T}$ 后把特征向量映射回原空间，残差始终对原矩阵校验；
+  \item \textbf{SuperLU 列序 \code{--permc-spec \{NATURAL,MMD\_AT\_PLUS\_A,MMD\_ATA,COLAMD\}}}：默认 \code{COLAMD}，\code{MMD\_*} 在部分矩阵上填充更小；
+  \item \textbf{ILU + GMRES \code{--inner-solver ilu}}：用不完全 LU（\code{--ilu-drop-tol}、\code{--ilu-fill-factor}）替代精确 LU，内解改为 GMRES（\code{--gmres-restart}、\code{--gmres-rtol}）。
+\end{enumerate}
+
+\subsection{自适应 ILU 自动选参（核心算法创新）}
+
+以\textbf{预测内层总工作量}
+\[
+W = \bigl(\mathrm{nnz}(A) + \mathrm{nnz}(LU)\bigr) \cdot \text{gmres\_iters}
+\]
+为目标，在内存预算内自动选取 $(\text{fill\_factor}, \text{drop\_tol})$，并用\textbf{有界 GMRES 探针}（\code{\_PROBE\_MAXITER = 3}，\code{\_PROBE\_TIME\_BUDGET\_S = 10\,s}）把弱预条件候选及时判负。候选阶梯为
+\[
+\{(1,10^{-2}),\ (2,10^{-3}),\ (5,10^{-4}),\ (10,10^{-4}),\ (20,10^{-5}),\ (50,10^{-6})\}
+\]
+
+配合 \code{--ilu-adaptive} 与 \code{--ilu-memory-budget-mb}，把 ILU 调参从\textbf{手工试错}变为\textbf{可复现的自动决策}。
+
+\subsection{可复现与可审计}
+
+\begin{itemize}
+  \item 固定 BLAS 与线程数时结果\textbf{逐位可复现}；
+  \item 所有移位、策略、迭代数、填充、峰值内存均写入诊断 JSON；
+  \item 求解器\textbf{不含任何硬编码答案}，不依赖闭源服务，全程离线单进程 CPU 即可运行；
+  \item 可选 GPU（CuPy，厄密路径）与 MPI 批处理后端。
+\end{itemize}
+
+\section{应用场景}
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{4.0cm} X p{4.6cm}@{}}
+\toprule
+场景 & 说明 & 方案对应能力 \\
+\midrule
+微波腔体 / 波导本征模 & 目标频段内的谐振频率与场分布 & 目标频段自适应位移 + shift-invert \\
+含损耗 / PML 器件 & 复对称非厄密矩阵，特征值带虚部 & General 路径（正确谱） \\
+天线 / 电磁兼容（EMC） & 大规模稀疏矩阵、内存受限 & 重排 + ILU 降填充 + 内存预算 \\
+光子晶体带隙 & 零附近密集谱 & 频带内向外走 + 多移位探测 \\
+大规模参数扫描 & 大量独立算例 & MPI 批处理 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+典型命令行用法：
+
+\begin{lstlisting}
+# 判定路径并求解
+sparse-eigensolve matrix.npz --output out.npz --mode auto -k 6 --sigma <f0>
+
+# 已知目标频带：从频带中心向外走
+sparse-eigensolve matrix.npz --output out.npz --target-band 1.0 2.0 --adaptive-shift -k 6
+
+# 内存受限：重排 + 自适应 ILU
+sparse-eigensolve matrix.npz --output out.npz --reorder rcm ^
+    --inner-solver ilu --ilu-adaptive --ilu-memory-budget-mb 1024 -k 6 --sigma 0.0
+\end{lstlisting}
+
+\section{创新点}
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{1.1cm} X p{5.2cm}@{}}
+\toprule
+编号 & 创新点 & 价值 \\
+\midrule
+C1 & 统一求解器原型：读取 $\to$ 预处理 $\to$ 核心迭代 $\to$ 收敛控制 $\to$ 输出 & 端到端可用，接口稳定 \\
+C2 & 双路径自动分流，并论证其为\textbf{正确性问题} & 避免复对称矩阵被错误求解 \\
+C3 & 三级自适应位移（探测 / 几何回退 / 目标频段） & 解决近奇异移位崩溃与漏模 \\
+C4 & 三种降填充策略，实测填充比降 1$\sim$2 个数量级 & 内存与时间各降约两个数量级 \\
+C5 & 覆盖 4 类典型故障场景的量化表 & 鲁棒性可验证 \\
+C6 & \textbf{自适应 ILU 自动选参}：工作量模型 + 有界探针 + 内存预算 & 调参自动化、可复现 \\
+C7 & 全流程可复现、可审计、无硬编码、离线运行 & 满足复现性评分要求 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{关键实测结果}
+
+\textbf{填充比是成本的决定因素}（填充比 $=$ 分解 nnz $/$ nnz$(A)$）：
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}l r l l p{4.2cm}@{}}
+\toprule
+矩阵 & $n$ & 精确 LU 填充比 & ILU 后填充比 & 效果 \\
+\midrule
+\code{Um\_\_2cubes\_sphere} & 101,492 & 253$\times$（$\sim$417M nnz, 381\,s） & 18.8$\times$（33\,s） & 内存/时间各降约一个数量级 \\
+\code{CEMW\_\_vfem} & 93,476 & 148$\times$（$\sim$500\,s） & 1.56$\times$（6\,s） & 内存/时间各降约两个数量级 \\
+\code{Oberwolfach\_\_gyro} & 17,361 & NATURAL 24.72$\times$ & MMD\_AT\_PLUS\_A 3.05$\times$ & 列序依矩阵而异 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{精度}：特征向量子空间夹角 $\sim 10^{-6}$ 度量级、特征值误差达机器精度、残差 $\le 10^{-8}$（多数 $\le 10^{-12}$）。
+
+\textbf{故障场景（4 类，全部覆盖）}：
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{3.6cm} X p{5.6cm}@{}}
+\toprule
+场景 & 挑战 & 处置 \\
+\midrule
+\code{near\_shift} & $\sigma$ 落在特征值附近 & 自适应位移回退 \\
+\code{low\_freq\_breakdown} & 零附近密集谱 & 频带内向外走 + 多探测 \\
+\code{repeated} & 重特征值 & 请求略多 $k$ + 正交性校验 \\
+\code{memory\_limited} & 1\,GB 硬预算 & 精确 LU 在 1158\,MB 被终止；ILU+GMRES 以 286\,MB 完成，残差 $5.38\text{e-}12$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{并行性结论（重要）}：在本工作负载上\textbf{线程并行加速基本无效}——最好成绩出现在 $p=1$（稀疏 LU 与三角回代内存带宽受限且高度串行，BLAS 多线程帮不上忙）。因此加速应来自\textbf{算法}（重排 / ILU 降填充）而非线程数；线程旋钮的价值在于\textbf{可复现性}与\textbf{避免超订}。
+
+\section{评分维度对应}
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{3.2cm} p{1.6cm} X@{}}
+\toprule
+评分维度 & 权重 & 本方案对应证据 \\
+\midrule
+任务定义 & 15\% & 明确标准/广义问题、求解边界、输入输出契约 \\
+算法正确性 & 25\% & 双路径分流、残差校验、与稠密 \code{eigh}/\code{eig} 对照 \\
+性能 & 20\% & 填充比 / 时间 / 峰值内存量化表 \\
+鲁棒性 & 15\% & 4 类故障场景全部覆盖 \\
+创新性 & 15\% & 自适应 ILU 自动选参（C6） \\
+可复现性 / 文档 & 10\% & 逐位可复现、诊断 JSON、完整文档与测试 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{交付物与运行方式}
+
+\subsection{目录结构}
+
+\begin{lstlisting}
+sparse-hermitian-eigensolver/
+|-- src/sparse_eigensolver/     # 核心算法模块
+|   |-- solver.py               # 求解器主逻辑
+|   |-- __main__.py             # CLI (sparse-eigensolve)
+|   |-- adaptive.py             # 自适应 ILU 规划器
+|   |-- benchmark.py            # 基准测试 CLI
+|   `-- gpu.py                  # CuPy GPU 后端 (Hermitian)
+|-- tools/                      # 数据获取 / 基准 / 故障场景 / 导出
+|-- tests/                      # 60 个 CPU 测试 + 2 个可选 GPU 测试
+|-- configs/                    # 预置配置 (JSON)
+|-- docs/                       # 设计文档、降级说明、提交审计
+|-- results/                    # 实测报告 (Markdown)
+|-- data/README.md              # 公开矩阵说明
+|-- PAPER.md                    # 完整技术论文草稿
+`-- README.md                   # 安装与使用说明
+\end{lstlisting}
+
+\subsection{快速开始}
+
+\begin{lstlisting}
+# 安装
+pip install -e ".[test]"
+
+# 运行测试
+pytest -q
+
+# 求解一个算例
+sparse-eigensolve data/raw/Bai__mhdb416.npz --output out.npz -k 4 --sigma 0.0
+
+# 查看诊断
+cat out.json
+\end{lstlisting}
+
+\subsection{输入 / 输出契约}
+
+\begin{itemize}
+  \item \textbf{输入}：\code{.npy}、SciPy \code{.npz}、Matrix Market \code{.mtx/.mm}；可选稀疏 $B$（\code{--mass-matrix}）。
+  \item \textbf{输出}：\code{.npz} 含 \code{eigenvalues}、\code{eigenvectors}、\code{residuals}；同名 \code{.json} 诊断文件含路径判定、移位、策略、迭代数、填充、峰值内存等全部元数据。
+\end{itemize}
+
+\section{可复现性声明}
+
+\begin{itemize}
+  \item 全部结果由公开矩阵与合成算例产生，\textbf{不含任何硬编码答案}；
+  \item 固定 \code{--threads 1} 时结果逐位可复现；
+  \item 所有实验脚本位于 \code{tools/}，报告位于 \code{results/}，可按 \code{Makefile} 目标一键复现；
+  \item 仅依赖 NumPy / SciPy（BSD 系许可），无网络调用、无闭源服务；
+  \item 官方专用数据格式与"复厄密 vs 复对称"约定在拿到官方样例后即可接入。
+\end{itemize}
+
+\vspace{1.0cm}
+\begin{center}
+\small\itshape
+本项目采用 BSD-3-Clause 许可，源码与文档完整开源。
+\end{center}
+
+\end{document}

@@ -1,0 +1,20 @@
+\contentsline {section}{\numberline {1}项目背景}{2}{section.1}%
+\contentsline {subsection}{\numberline {1.1}工业需求}{2}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}现有工具的三大痛点}{2}{subsection.1.2}%
+\contentsline {section}{\numberline {2}技术架构}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}总体流程}{2}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}核心算法：位移求逆（Shift-invert）Lanczos / Arnoldi}{3}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}双路径自动分流（正确性保障）}{3}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}三级自适应位移机制}{3}{subsection.2.4}%
+\contentsline {subsection}{\numberline {2.5}降填充（fill-in）策略}{4}{subsection.2.5}%
+\contentsline {subsection}{\numberline {2.6}自适应 ILU 自动选参（核心算法创新）}{4}{subsection.2.6}%
+\contentsline {subsection}{\numberline {2.7}可复现与可审计}{4}{subsection.2.7}%
+\contentsline {section}{\numberline {3}应用场景}{4}{section.3}%
+\contentsline {section}{\numberline {4}创新点}{5}{section.4}%
+\contentsline {subsection}{\numberline {4.1}关键实测结果}{5}{subsection.4.1}%
+\contentsline {section}{\numberline {5}评分维度对应}{6}{section.5}%
+\contentsline {section}{\numberline {6}交付物与运行方式}{6}{section.6}%
+\contentsline {subsection}{\numberline {6.1}目录结构}{6}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}快速开始}{7}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}输入 / 输出契约}{7}{subsection.6.3}%
+\contentsline {section}{\numberline {7}可复现性声明}{7}{section.7}%
